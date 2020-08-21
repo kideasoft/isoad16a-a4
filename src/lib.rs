@@ -10,6 +10,7 @@ pub enum Error {
     DecodeError,
     ResponseError,
     StatusError,
+    ChanError,
 }
 
 pub struct Ad {
@@ -54,6 +55,25 @@ impl Ad {
         Ok(r)
     }
 
+    fn decode_chan(&self, s: &str) -> Result<f32, Error> {
+        if s.len() != 9 {
+            return Err(Error::DecodeError);
+        }
+
+        match s.chars().nth(0) {
+            Some(c) => {
+                if c != '>' {
+                    return Err(Error::DecodeError);
+                }
+            }
+            None => return Err(Error::DecodeError),
+        }
+
+        let v = s[1..8].parse::<f32>().map_err(|_| Error::DecodeError)?;
+
+        Ok(v)
+    }
+
     pub fn get_all(&mut self) -> Result<[f32; 16], Error> {
         let addr = self.addr.to_string();
 
@@ -80,5 +100,45 @@ impl Ad {
         // );
 
         self.decode(str::from_utf8(&buf[..n]).map_err(|_| Error::DecodeError)?)
+    }
+
+    pub fn get_chan(&mut self, chan: u8) -> Result<f32, Error> {
+        if chan > 15 {
+            return Err(Error::ChanError);
+        }
+        let chan = chan.to_string();
+        let chan = match chan.len() {
+            1 => ["0", &chan].concat(),
+            2 => chan,
+            _ => return Err(Error::ChanError),
+        };
+
+        let addr = self.addr.to_string();
+
+        let cmd = match addr.len() {
+            1 => ["#0", &addr, &chan, "\r"].concat(),
+            2 => ["#", &addr, &chan, "\r"].concat(),
+            _ => return Err(Error::DecodeError),
+        };
+
+        self.port
+            .write(cmd.as_bytes())
+            .map_err(|e| Error::IoError(e))?;
+
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        let mut buf = [0_u8; 1024];
+        let n = self.port.read(&mut buf).map_err(|e| Error::IoError(e))?;
+
+        // DEBUG:
+        // println!(
+        //     "{} bytes, receive: {}",
+        //     n,
+        //     str::from_utf8(&buf[..n]).unwrap()
+        // );
+
+        let reply = str::from_utf8(&buf[..n]).map_err(|_| Error::DecodeError)?;
+
+        self.decode_chan(reply)
     }
 }
