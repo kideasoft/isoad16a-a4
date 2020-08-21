@@ -10,7 +10,7 @@ pub enum Error {
     DecodeError,
     ResponseError,
     StatusError,
-    ChanError,
+    ChanNumError,
 }
 
 pub struct Ad {
@@ -104,13 +104,13 @@ impl Ad {
 
     pub fn get_chan(&mut self, chan: u8) -> Result<f32, Error> {
         if chan > 15 {
-            return Err(Error::ChanError);
+            return Err(Error::ChanNumError);
         }
         let chan = chan.to_string();
         let chan = match chan.len() {
             1 => ["0", &chan].concat(),
             2 => chan,
-            _ => return Err(Error::ChanError),
+            _ => return Err(Error::ChanNumError),
         };
 
         let addr = self.addr.to_string();
